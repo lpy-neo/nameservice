@@ -25,9 +25,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/slashing"
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	"github.com/cosmos/cosmos-sdk/x/supply"
+	"github.com/lpy-neo/nameservice/x/nameservice"
 )
 
-const appName = "app"
+const appName = "nameservice"
 
 var (
 	// TODO: rename your cli
@@ -52,7 +53,8 @@ var (
 		params.AppModuleBasic{},
 		slashing.AppModuleBasic{},
 		supply.AppModuleBasic{},
-		// TODO: Add your module(s) AppModuleBasic
+
+		nameservice.AppModule{},
 	)
 
 	// module account permissions
@@ -77,12 +79,10 @@ func MakeCodec() *codec.Codec {
 	return cdc.Seal()
 }
 
-// NewApp extended ABCI application
-type NewApp struct {
+// NameServiceApp extended ABCI application
+type NameServiceApp struct {
 	*bam.BaseApp
 	cdc *codec.Codec
-
-	invCheckPeriod uint
 
 	// keys to access the substores
 	keys  map[string]*sdk.KVStoreKey
@@ -99,7 +99,7 @@ type NewApp struct {
 	distrKeeper    distr.Keeper
 	supplyKeeper   supply.Keeper
 	paramsKeeper   params.Keeper
-	// TODO: Add your module(s)
+	nsKeeper       nameservice.Keeper
 
 	// Module Manager
 	mm *module.Manager
@@ -109,13 +109,13 @@ type NewApp struct {
 }
 
 // verify app interface at compile time
-var _ simapp.App = (*NewApp)(nil)
+var _ simapp.App = (*NameServiceApp)(nil)
 
-// NewnameserviceApp is a constructor function for nameserviceApp
-func NewInitApp(
+// NewNameServiceApp is a constructor function for nameserviceApp
+func NewNameServiceApp(
 	logger log.Logger, db dbm.DB, traceStore io.Writer, loadLatest bool,
-	invCheckPeriod uint, baseAppOptions ...func(*bam.BaseApp),
-) *NewApp {
+	baseAppOptions ...func(*bam.BaseApp),
+) *NameServiceApp {
 	// First define the top level codec that will be shared by the different modules
 	cdc := MakeCodec()
 
@@ -131,13 +131,12 @@ func NewInitApp(
 	tKeys := sdk.NewTransientStoreKeys(staking.TStoreKey, params.TStoreKey)
 
 	// Here you initialize your application with the store keys it requires
-	var app = &NewApp{
-		BaseApp:        bApp,
-		cdc:            cdc,
-		invCheckPeriod: invCheckPeriod,
-		keys:           keys,
-		tKeys:          tKeys,
-		subspaces:      make(map[string]params.Subspace),
+	var app = &NameServiceApp{
+		BaseApp:   bApp,
+		cdc:       cdc,
+		keys:      keys,
+		tKeys:     tKeys,
+		subspaces: make(map[string]params.Subspace),
 	}
 
 	// The ParamsKeeper handles parameter storage for the application
@@ -206,7 +205,14 @@ func NewInitApp(
 			app.slashingKeeper.Hooks()),
 	)
 
-	// TODO: Add your module(s) keepers
+	// The NameserviceKeeper is the Keeper from the module for this tutorial
+	// It handles interactions with the namestore
+	app.nsKeeper = nameservice.NewKeeper(
+		app.bankKeeper,
+		app.cdc,
+		keys[nameservice.StoreKey],
+		app.subspaces[nameservice.StoreKey],
+	)
 
 	// NOTE: Any module instantiated in the module manager that is later modified
 	// must be passed by reference here.
@@ -220,7 +226,7 @@ func NewInitApp(
 		// TODO: Add your module(s)
 		staking.NewAppModule(app.stakingKeeper, app.accountKeeper, app.supplyKeeper),
 		slashing.NewAppModule(app.slashingKeeper, app.accountKeeper, app.stakingKeeper),
-
+		nameservice.NewAppModule(app.nsKeeper, app.bankKeeper),
 	)
 	// During begin block slashing happens after distr.BeginBlocker so that
 	// there is nothing left over in the validator fee pool, so as to keep the
@@ -240,6 +246,7 @@ func NewInitApp(
 		slashing.ModuleName,
 		// TODO: Add your module(s)
 		supply.ModuleName,
+		nameservice.ModuleName,
 		genutil.ModuleName,
 	)
 
@@ -283,7 +290,7 @@ func NewDefaultGenesisState() GenesisState {
 }
 
 // InitChainer application update at chain initialization
-func (app *NewApp) InitChainer(ctx sdk.Context, req abci.RequestInitChain) abci.ResponseInitChain {
+func (app *NameServiceApp) InitChainer(ctx sdk.Context, req abci.RequestInitChain) abci.ResponseInitChain {
 	var genesisState simapp.GenesisState
 
 	app.cdc.MustUnmarshalJSON(req.AppStateBytes, &genesisState)
@@ -292,22 +299,22 @@ func (app *NewApp) InitChainer(ctx sdk.Context, req abci.RequestInitChain) abci.
 }
 
 // BeginBlocker application updates every begin block
-func (app *NewApp) BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock) abci.ResponseBeginBlock {
+func (app *NameServiceApp) BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock) abci.ResponseBeginBlock {
 	return app.mm.BeginBlock(ctx, req)
 }
 
 // EndBlocker application updates every end block
-func (app *NewApp) EndBlocker(ctx sdk.Context, req abci.RequestEndBlock) abci.ResponseEndBlock {
+func (app *NameServiceApp) EndBlocker(ctx sdk.Context, req abci.RequestEndBlock) abci.ResponseEndBlock {
 	return app.mm.EndBlock(ctx, req)
 }
 
 // LoadHeight loads a particular height
-func (app *NewApp) LoadHeight(height int64) error {
+func (app *NameServiceApp) LoadHeight(height int64) error {
 	return app.LoadVersion(height, app.keys[bam.MainStoreKey])
 }
 
 // ModuleAccountAddrs returns all the app's module account addresses.
-func (app *NewApp) ModuleAccountAddrs() map[string]bool {
+func (app *NameServiceApp) ModuleAccountAddrs() map[string]bool {
 	modAccAddrs := make(map[string]bool)
 	for acc := range maccPerms {
 		modAccAddrs[supply.NewModuleAddress(acc).String()] = true
@@ -317,12 +324,12 @@ func (app *NewApp) ModuleAccountAddrs() map[string]bool {
 }
 
 // Codec returns the application's sealed codec.
-func (app *NewApp) Codec() *codec.Codec {
+func (app *NameServiceApp) Codec() *codec.Codec {
 	return app.cdc
 }
 
 // SimulationManager implements the SimulationApp interface
-func (app *NewApp) SimulationManager() *module.SimulationManager {
+func (app *NameServiceApp) SimulationManager() *module.SimulationManager {
 	return app.sm
 }
 
