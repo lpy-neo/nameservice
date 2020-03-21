@@ -12,14 +12,15 @@ const (
 )
 
 var (
-	NewKeeper        = keeper.NewKeeper
-	NewQuerier       = keeper.NewQuerier
-	NewMsgBuyName    = types.NewMsgBuyName
-	NewMsgSetName    = types.NewMsgSetName
-	NewMsgDeleteName = types.NewMsgDeleteName
-	NewWhois         = types.NewWhois
-	ModuleCdc        = types.ModuleCdc
-	RegisterCodec    = types.RegisterCodec
+	NewKeeper         = keeper.NewKeeper
+	NewQuerier        = keeper.NewQuerier
+	NewMsgBuyName     = types.NewMsgBuyName
+	NewMsgSetName     = types.NewMsgSetName
+	NewMsgDeleteName  = types.NewMsgDeleteName
+	NewWhois          = types.NewWhois
+	ModuleCdc         = types.ModuleCdc
+	RegisterCodec     = types.RegisterCodec
+	DefaultParamspace = types.DefaultParamspace
 )
 
 type (

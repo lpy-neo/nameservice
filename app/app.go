@@ -147,6 +147,7 @@ func NewNameServiceApp(
 	app.subspaces[staking.ModuleName] = app.paramsKeeper.Subspace(staking.DefaultParamspace)
 	app.subspaces[distr.ModuleName] = app.paramsKeeper.Subspace(distr.DefaultParamspace)
 	app.subspaces[slashing.ModuleName] = app.paramsKeeper.Subspace(slashing.DefaultParamspace)
+	app.subspaces[nameservice.ModuleName] = app.paramsKeeper.Subspace(nameservice.DefaultParamspace)
 
 	// The AccountKeeper handles address -> account lookups
 	app.accountKeeper = auth.NewAccountKeeper(
@@ -211,7 +212,7 @@ func NewNameServiceApp(
 		app.bankKeeper,
 		app.cdc,
 		keys[nameservice.StoreKey],
-		app.subspaces[nameservice.StoreKey],
+		app.subspaces[nameservice.ModuleName],
 	)
 
 	// NOTE: Any module instantiated in the module manager that is later modified
