@@ -23,6 +23,7 @@ func GetQueryCmd(storeKey string, cdc *codec.Codec) *cobra.Command {
 		GetCmdResolveName(storeKey, cdc),
 		GetCmdWhois(storeKey, cdc),
 		GetCmdNames(storeKey, cdc),
+		GetCmdSaleStatus(storeKey, cdc),
 	)...)
 
 	return nameserviceQueryCmd
@@ -90,6 +91,29 @@ func GetCmdNames(queryRoute string, cdc *codec.Codec) *cobra.Command {
 			}
 
 			var out types.QueryResNames
+			cdc.MustUnmarshalJSON(res, &out)
+			return cliCtx.PrintOutput(out)
+		},
+	}
+}
+
+// GetCmdSaleStatus queries sale information about a domain
+func GetCmdSaleStatus(queryRoute string, cdc *codec.Codec) *cobra.Command {
+	return &cobra.Command{
+		Use:   "sale-status [name]",
+		Short: "Query sale info of name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliCtx := context.NewCLIContext().WithCodec(cdc)
+			name := args[0]
+
+			res, _, err := cliCtx.QueryWithData(fmt.Sprintf("custom/%s/sale_status/%s", queryRoute, name), nil)
+			if err != nil {
+				fmt.Printf("could not resolve whois - %s \n", name)
+				return nil
+			}
+
+			var out types.QuerySaleStatus
 			cdc.MustUnmarshalJSON(res, &out)
 			return cliCtx.PrintOutput(out)
 		},

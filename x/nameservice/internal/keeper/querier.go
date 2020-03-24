@@ -11,9 +11,10 @@ import (
 
 // query endpoints supported by the nameservice Querier
 const (
-	QueryResolve = "resolve"
-	QueryWhois   = "whois"
-	QueryNames   = "names"
+	QueryResolve    = "resolve"
+	QueryWhois      = "whois"
+	QueryNames      = "names"
+	QuerySaleStatus = "sale_status"
 )
 
 // NewQuerier is the module level router for state queries
@@ -26,6 +27,8 @@ func NewQuerier(keeper Keeper) sdk.Querier {
 			return queryWhois(ctx, path[1:], req, keeper)
 		case QueryNames:
 			return queryNames(ctx, req, keeper)
+		case QuerySaleStatus:
+			return querySaleStatus(ctx, path[1:], req, keeper)
 		default:
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, "unknown nameservice query endpoint")
 		}
@@ -70,6 +73,27 @@ func queryNames(ctx sdk.Context, req abci.RequestQuery, keeper Keeper) ([]byte, 
 	}
 
 	res, err := codec.MarshalJSONIndent(keeper.cdc, namesList)
+	if err != nil {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
+	}
+
+	return res, nil
+}
+
+// nolint: unparam
+func querySaleStatus(ctx sdk.Context, path []string, req abci.RequestQuery, keeper Keeper) ([]byte, error) {
+	status := keeper.GetSaleStaus(ctx, path[0])
+	bidPriceStr := ""
+	if len(status.Bids) > 0 {
+		bidPriceStr = status.Bids[len(status.Bids)-1].Price.String()
+	}
+	retStatus := types.QuerySaleStatus{
+		SaleType: status.SaleType,
+		Price:    status.Price.String(),
+		BidPrice: bidPriceStr,
+	}
+
+	res, err := codec.MarshalJSONIndent(keeper.cdc, retStatus)
 	if err != nil {
 		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONMarshal, err.Error())
 	}

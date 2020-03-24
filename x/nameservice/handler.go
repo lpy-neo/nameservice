@@ -18,6 +18,8 @@ func NewHandler(keeper Keeper) sdk.Handler {
 			return handleMsgBuyName(ctx, keeper, msg)
 		case types.MsgDeleteName:
 			return handleMsgDeleteName(ctx, keeper, msg)
+		case types.MsgSetSale:
+			return handleMsgSetSale(ctx, keeper, msg)
 		default:
 			return nil, sdkerrors.Wrap(sdkerrors.ErrUnknownRequest, fmt.Sprintf("Unrecognized nameservice Msg type: %v", msg.Type()))
 		}
@@ -35,6 +37,17 @@ func handleMsgSetName(ctx sdk.Context, keeper Keeper, msg types.MsgSetName) (*sd
 
 // Handle a message to buy name
 func handleMsgBuyName(ctx sdk.Context, keeper Keeper, msg types.MsgBuyName) (*sdk.Result, error) {
+	saleStaus := keeper.GetSaleStaus(ctx, msg.Name)
+	switch saleStaus.SaleType {
+	case types.SaleTypeNormal:
+		return handleNormalBuy(ctx, keeper, msg)
+	case types.SaleTypeAuction:
+		return handleAuctionBuy(ctx, keeper, msg)
+	}
+	return nil, sdkerrors.Wrap(sdkerrors.ErrInvalidRequest, "Name is not on sale")
+}
+
+func handleNormalBuy(ctx sdk.Context, keeper Keeper, msg types.MsgBuyName) (*sdk.Result, error) {
 	// Checks if the the bid price is greater than the price paid by the current owner
 	if keeper.GetPrice(ctx, msg.Name).IsAllGT(msg.Bid) {
 		return nil, sdkerrors.Wrap(sdkerrors.ErrInsufficientFunds, "Bid not high enough") // If not, throw an error
@@ -55,6 +68,23 @@ func handleMsgBuyName(ctx sdk.Context, keeper Keeper, msg types.MsgBuyName) (*sd
 	return &sdk.Result{}, nil
 }
 
+func handleAuctionBuy(ctx sdk.Context, keeper Keeper, msg types.MsgBuyName) (*sdk.Result, error) {
+	// Checks if the the bid price is greater than the price paid by the current owner
+	whois := keeper.GetWhois(ctx, msg.Name)
+	if len(whois.SaleStatus.Bids) == 0 && whois.SaleStatus.Price.IsAllGT(msg.Bid) ||
+		len(whois.SaleStatus.Bids) > 0 && whois.SaleStatus.Bids[len(whois.SaleStatus.Bids)-1].Price.IsAllGTE(msg.Bid) {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrInsufficientFunds, "Bid not high enough") // If not, throw an error
+	}
+
+	if len(whois.SaleStatus.Bids) > 0 && whois.SaleStatus.Bids[len(whois.SaleStatus.Bids)-1].Buyer.Equals(msg.Buyer) {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrInsufficientFunds, "The last bid is asking from youself")
+	}
+
+	keeper.AddBid(ctx, msg.Name, msg.Buyer, msg.Bid)
+
+	return &sdk.Result{}, nil
+}
+
 // Handle a message to delete name
 func handleMsgDeleteName(ctx sdk.Context, keeper Keeper, msg types.MsgDeleteName) (*sdk.Result, error) {
 	if !keeper.IsNamePresent(ctx, msg.Name) {
@@ -65,5 +95,18 @@ func handleMsgDeleteName(ctx sdk.Context, keeper Keeper, msg types.MsgDeleteName
 	}
 
 	keeper.DeleteWhois(ctx, msg.Name)
+	return &sdk.Result{}, nil
+}
+
+// Handle a message to set sale
+func handleMsgSetSale(ctx sdk.Context, keeper Keeper, msg types.MsgSetSale) (*sdk.Result, error) {
+	if !keeper.IsNamePresent(ctx, msg.Name) {
+		return nil, sdkerrors.Wrap(types.ErrNameDoesNotExist, msg.Name)
+	}
+	if !msg.Owner.Equals(keeper.GetOwner(ctx, msg.Name)) {
+		return nil, sdkerrors.Wrap(sdkerrors.ErrUnauthorized, "Incorrect Owner")
+	}
+
+	keeper.SetSale(ctx, msg.Name, msg.SaleType, msg.Price)
 	return &sdk.Result{}, nil
 }

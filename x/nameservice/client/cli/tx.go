@@ -2,7 +2,8 @@ package cli
 
 import (
 	"bufio"
-	
+	"strconv"
+
 	"github.com/spf13/cobra"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -28,6 +29,7 @@ func GetTxCmd(storeKey string, cdc *codec.Codec) *cobra.Command {
 		GetCmdBuyName(cdc),
 		GetCmdSetName(cdc),
 		GetCmdDeleteName(cdc),
+		GetCmdSetSale(cdc),
 	)...)
 
 	return nameserviceTxCmd
@@ -101,6 +103,42 @@ func GetCmdDeleteName(cdc *codec.Codec) *cobra.Command {
 
 			msg := types.NewMsgDeleteName(args[0], cliCtx.GetFromAddress())
 			err := msg.ValidateBasic()
+			if err != nil {
+				return err
+			}
+
+			// return utils.CompleteAndBroadcastTxCLI(txBldr, cliCtx, msgs)
+			return utils.GenerateOrBroadcastMsgs(cliCtx, txBldr, []sdk.Msg{msg})
+		},
+	}
+}
+
+// GetCmdSetSale is the CLI command for sending a SetSale transaction
+func GetCmdSetSale(cdc *codec.Codec) *cobra.Command {
+	return &cobra.Command{
+		Use:   "set-sale [name] [type] [price]",
+		Short: "set the type and price of the sale for the name you own",
+		Args:  cobra.ExactArgs(3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliCtx := context.NewCLIContext().WithCodec(cdc)
+			inBuf := bufio.NewReader(cmd.InOrStdin())
+			txBldr := auth.NewTxBuilderFromCLI(inBuf).WithTxEncoder(utils.GetTxEncoder(cdc))
+
+			// if err := cliCtx.EnsureAccountExists(); err != nil {
+			// 	return err
+			// }
+			coins, err := sdk.ParseCoins(args[2])
+			if err != nil {
+				return err
+			}
+
+			saleType, err := strconv.Atoi(args[1])
+			if err != nil {
+				return err
+			}
+
+			msg := types.NewMsgSetSale(cliCtx.GetFromAddress(), args[0], saleType, coins)
+			err = msg.ValidateBasic()
 			if err != nil {
 				return err
 			}

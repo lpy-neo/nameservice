@@ -4,8 +4,8 @@ VERSION := $(shell echo $(shell git describe --tags) | sed 's/^v//')
 COMMIT := $(shell git log -1 --format='%H')
 
 ldflags = -X github.com/cosmos/cosmos-sdk/version.Name=NameService \
-	-X github.com/cosmos/cosmos-sdk/version.ServerName=aud \
-	-X github.com/cosmos/cosmos-sdk/version.ClientName=acli \
+	-X github.com/cosmos/cosmos-sdk/version.ServerName=nsd \
+	-X github.com/cosmos/cosmos-sdk/version.ClientName=nscli \
 	-X github.com/cosmos/cosmos-sdk/version.Version=$(VERSION) \
 	-X github.com/cosmos/cosmos-sdk/version.Commit=$(COMMIT) 
 
@@ -15,12 +15,12 @@ include Makefile.ledger
 all: install
 
 install: go.sum
-		go install -mod=readonly $(BUILD_FLAGS) ./cmd/aud
-		go install -mod=readonly $(BUILD_FLAGS) ./cmd/acli
+		go install -mod=readonly $(BUILD_FLAGS) ./cmd/nsd
+		go install -mod=readonly $(BUILD_FLAGS) ./cmd/nscli
 
 build:# go.sum
-		go build -mod=readonly $(BUILD_FLAGS) ./cmd/aud
-		go build -mod=readonly $(BUILD_FLAGS) ./cmd/acli
+		go build -mod=readonly $(BUILD_FLAGS) -gcflags '-N -l' ./cmd/nsd
+		go build -mod=readonly $(BUILD_FLAGS) -gcflags '-N -l' ./cmd/nscli
 
 go.sum: go.mod
 		@echo "--> Ensure dependencies have not been modified"

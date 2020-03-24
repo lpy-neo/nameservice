@@ -18,6 +18,7 @@ var (
 	NewMsgSetName     = types.NewMsgSetName
 	NewMsgDeleteName  = types.NewMsgDeleteName
 	NewWhois          = types.NewWhois
+	NewMsgSetSale     = types.NewMsgSetSale
 	ModuleCdc         = types.ModuleCdc
 	RegisterCodec     = types.RegisterCodec
 	DefaultParamspace = types.DefaultParamspace
@@ -28,7 +29,9 @@ type (
 	MsgSetName      = types.MsgSetName
 	MsgBuyName      = types.MsgBuyName
 	MsgDeleteName   = types.MsgDeleteName
+	MsgSetSale      = types.MsgSetSale
 	QueryResResolve = types.QueryResResolve
 	QueryResNames   = types.QueryResNames
 	Whois           = types.Whois
+	QuerySaleStaus  = types.QuerySaleStatus
 )

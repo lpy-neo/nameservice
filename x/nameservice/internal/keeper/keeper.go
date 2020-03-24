@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/tendermint/tendermint/libs/log"
 
@@ -107,6 +108,23 @@ func (k Keeper) GetPrice(ctx sdk.Context, name string) sdk.Coins {
 	return k.GetWhois(ctx, name).Price
 }
 
+// GetSaleStaus - gets the current sale status of a name
+func (k Keeper) GetSaleStaus(ctx sdk.Context, name string) types.SaleStatus {
+	whois := k.GetWhois(ctx, name)
+	return whois.SaleStatus
+}
+
+func (k Keeper) AddBid(ctx sdk.Context, name string, buyer sdk.AccAddress, price sdk.Coins) {
+	whois := k.GetWhois(ctx, name)
+	whois.SaleStatus.Bids = append(whois.SaleStatus.Bids, types.Bid{
+		Buyer:       buyer,
+		Price:       price,
+		BlockHeight: ctx.BlockHeight(),
+		Timestamp:   time.Now().Unix(),
+	})
+	k.SetWhois(ctx, name, whois)
+}
+
 // SetPrice - sets the current price of a name
 func (k Keeper) SetPrice(ctx sdk.Context, name string, price sdk.Coins) {
 	whois := k.GetWhois(ctx, name)
@@ -124,4 +142,64 @@ func (k Keeper) IsNamePresent(ctx sdk.Context, name string) bool {
 func (k Keeper) GetNamesIterator(ctx sdk.Context) sdk.Iterator {
 	store := ctx.KVStore(k.storeKey)
 	return sdk.KVStorePrefixIterator(store, []byte{})
+}
+
+// SetSale - sets the current price of a name
+func (k Keeper) SetSale(ctx sdk.Context, name string, saleType types.SaleType, price sdk.Coins) {
+	whois := k.GetWhois(ctx, name)
+	whois.Price = price
+	whois.SaleStatus = types.SaleStatus{
+		SaleType: saleType,
+		Price:    price,
+	}
+	k.SetWhois(ctx, name, whois)
+}
+
+func (k Keeper) FinishAuctions(ctx sdk.Context, curBlockHeight int64) int {
+	finished := 0
+
+	for it := k.GetNamesIterator(ctx); it.Valid(); it.Next() {
+		name := string(it.Key())
+		whois := k.GetWhois(ctx, name)
+
+		if whois.SaleStatus.SaleType != types.SaleTypeAuction ||
+			len(whois.SaleStatus.Bids) == 0 {
+			continue
+		}
+
+		lastBid := whois.SaleStatus.Bids[len(whois.SaleStatus.Bids)-1]
+		if curBlockHeight-lastBid.BlockHeight > types.AuctionFinishBlockInterval {
+			if err := k.finishOneAuction(ctx, name, lastBid.Buyer, lastBid.Price); err != nil {
+
+			} else {
+				finished++
+			}
+		}
+	}
+
+	return finished
+}
+
+func (k Keeper) finishOneAuction(ctx sdk.Context, name string, buyer sdk.AccAddress, price sdk.Coins) error {
+	_, err := k.CoinKeeper.SubtractCoins(ctx, buyer, price) // If so, deduct the Bid amount from the sender
+	if err != nil {
+		return err
+	}
+
+	whois := k.GetWhois(ctx, name)
+	whois.Owner = buyer
+	whois.Price = price
+	whois.SaleStatus = types.SaleStatus{
+		SaleType: types.SaleTypeNotSale,
+	}
+	k.SetWhois(ctx, name, whois)
+
+	if k.HasOwner(ctx, name) {
+		err := k.CoinKeeper.SendCoins(ctx, buyer, k.GetOwner(ctx, name), price)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
